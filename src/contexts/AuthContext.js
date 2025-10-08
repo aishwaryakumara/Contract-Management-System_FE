@@ -20,20 +20,28 @@ export function AuthProvider({ children }) {
   // Check for existing session on mount
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
+    const storedToken = localStorage.getItem('token');
+    
+    if (storedUser && storedToken) {
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (err) {
+        console.error('Error parsing stored user:', err);
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
+      }
     }
     setLoading(false);
   }, []);
 
   // Redirect logic
   useEffect(() => {
-    if (!loading && !showSuccess) {
+    if (!loading) {
       // Don't redirect while showing success animation
       if (!user && pathname !== '/login') {
         // Not logged in and not on login page -> redirect to login
         router.push('/login');
-      } else if (user && pathname === '/login') {
+      } else if (user && pathname === '/login' && !showSuccess) {
         // Logged in and on login page -> redirect to home
         // But only if we're not showing success animation
         router.push('/');
@@ -75,11 +83,17 @@ export function AuthProvider({ children }) {
   const logout = () => {
     setUser(null);
     localStorage.removeItem('user');
+    localStorage.removeItem('token');
     router.push('/login');
   };
 
+  // Method to update user after backend login
+  const updateUser = (userData) => {
+    setUser(userData);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading, showSuccess }}>
+    <AuthContext.Provider value={{ user, login, logout, loading, showSuccess, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

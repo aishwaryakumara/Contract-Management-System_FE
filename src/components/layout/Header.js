@@ -64,11 +64,11 @@ export default function Header() {
             {user && (
               <>
                 <span className="hidden sm:block text-sm text-gray-700 dark:text-gray-300 transition-colors">
-                  Welcome, {user.name}
+                  Welcome, {user.name || user.username || user.email || 'User'}
                 </span>
                 <div className="w-8 h-8 bg-blue-600 dark:bg-blue-500 rounded-full flex items-center justify-center transition-colors">
                   <span className="text-white text-sm font-medium">
-                    {user.name.charAt(0).toUpperCase()}
+                    {(user.name || user.username || user.email || 'U').charAt(0).toUpperCase()}
                   </span>
                 </div>
                 <button

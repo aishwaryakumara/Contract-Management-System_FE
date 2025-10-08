@@ -1,34 +1,68 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { authAPI } from '@/lib/api';
 import Image from 'next/image';
+import toast from 'react-hot-toast';
 
 export default function LoginPage() {
-  const [username, setUsername] = useState('');
+  const router = useRouter();
+  const { updateUser } = useAuth();
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { login, showSuccess } = useAuth();
-
-  // Debug: log when showSuccess changes
-  console.log('LoginPage render - showSuccess:', showSuccess);
+  const [showSuccess, setShowSuccess] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
 
-    // Simulate API call delay for smooth animation
-    await new Promise(resolve => setTimeout(resolve, 800));
-
-    const result = login(username, password);
-    console.log('Login result:', result);
-    if (!result.success) {
-      setError(result.error);
+    try {
+      // Call the actual backend API
+      const response = await authAPI.login(email, password);
+      
+      if (response.success && response.data.success) {
+        const userData = response.data.data.user;
+        const token = response.data.data.token;
+        
+        // Store token and user data
+        localStorage.setItem('token', token);
+        localStorage.setItem('user', JSON.stringify(userData));
+        
+        // Update AuthContext
+        updateUser(userData);
+        
+        // Show success animation
+        setShowSuccess(true);
+        toast.success('Login successful!', {
+          icon: '✅',
+        });
+        
+        // Redirect to home after animation
+        setTimeout(() => {
+          router.push('/');
+        }, 1500);
+      } else {
+        // Handle error from backend
+        const errorMessage = response.data?.message || 'Invalid credentials';
+        setError(errorMessage);
+        setIsLoading(false);
+        toast.error(errorMessage, {
+          icon: '❌',
+        });
+      }
+    } catch (err) {
+      console.error('Login error:', err);
+      setError('Failed to connect to server. Please try again.');
       setIsLoading(false);
+      toast.error('Connection error. Please check if the backend is running.', {
+        icon: '⚠️',
+      });
     }
-    // If success, don't set isLoading to false - let animation play
   };
 
   return (
@@ -78,19 +112,19 @@ export default function LoginPage() {
         {/* Login Form */}
         <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-8">
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Username */}
+            {/* Email */}
             <div>
               <label 
-                htmlFor="username" 
+                htmlFor="email" 
                 className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
               >
-                Username
+                Email
               </label>
               <input
-                id="username"
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 required
                 disabled={isLoading}
                 className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg 
@@ -98,7 +132,7 @@ export default function LoginPage() {
                          focus:ring-2 focus:ring-blue-500 focus:border-transparent
                          transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed
                          hover:border-gray-400 dark:hover:border-gray-500"
-                placeholder="Enter username"
+                placeholder="Enter your email"
               />
             </div>
 
@@ -160,12 +194,11 @@ export default function LoginPage() {
           {/* Demo Credentials */}
           <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
             <p className="text-xs text-gray-500 dark:text-gray-400 text-center mb-3">
-              Demo Credentials (for testing):
+              Use your backend credentials to login
             </p>
             <div className="bg-gray-50 dark:bg-gray-800 rounded p-3 text-center">
               <p className="text-sm text-gray-700 dark:text-gray-300">
-                <strong>Username:</strong> user<br />
-                <strong>Password:</strong> user123@#$
+                Enter the email and password from your backend
               </p>
             </div>
           </div>
