@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import ProtectedLayout from '@/components/ProtectedLayout';
-import { contractsAPI } from '@/lib/api';
+import { contractsAPI, lookupsAPI } from '@/lib/api';
 import toast from 'react-hot-toast';
 
 export default function Contracts() {
@@ -15,6 +15,10 @@ export default function Contracts() {
   const [copiedIds, setCopiedIds] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   
+  // Lookup data
+  const [contractTypes, setContractTypes] = useState([]);
+  const [contractStatuses, setContractStatuses] = useState([]);
+  
   // Search and filter states
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState({
@@ -23,6 +27,7 @@ export default function Contracts() {
     startDate: '',
     endDate: '',
     clientName: '',
+    baseContractId: '',
     contractId: '',
     contractName: '',
     minValue: '',
@@ -35,6 +40,30 @@ export default function Contracts() {
 
   // Sorting state
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+
+  // Fetch lookup data (contract types and statuses)
+  useEffect(() => {
+    async function loadLookups() {
+      try {
+        // Fetch contract types
+        const typesResponse = await lookupsAPI.getContractTypes();
+        if (typesResponse.success && typesResponse.data.success) {
+          setContractTypes(typesResponse.data.data || []);
+        }
+        
+        // Fetch contract statuses
+        const statusesResponse = await lookupsAPI.getContractStatuses();
+        if (statusesResponse.success && statusesResponse.data.success) {
+          setContractStatuses(statusesResponse.data.data || []);
+        }
+      } catch (error) {
+        console.error('Error loading lookup data:', error);
+        // Silently fail - dropdowns will just be empty
+      }
+    }
+    
+    loadLookups();
+  }, []);
 
   // Fetch contracts from backend
   useEffect(() => {
@@ -130,7 +159,14 @@ export default function Contracts() {
       );
     }
 
-    // Contract ID filter (advanced)
+    // Base Contract ID filter (advanced)
+    if (filters.baseContractId) {
+      result = result.filter(contract => 
+        contract.contractId?.toLowerCase().includes(filters.baseContractId.toLowerCase())
+      );
+    }
+
+    // Contract Instance ID filter (advanced)
     if (filters.contractId) {
       result = result.filter(contract => 
         contract.id.toLowerCase().includes(filters.contractId.toLowerCase())
@@ -234,6 +270,7 @@ export default function Contracts() {
       startDate: '',
       endDate: '',
       clientName: '',
+      baseContractId: '',
       contractId: '',
       contractName: '',
       minValue: '',
@@ -265,6 +302,7 @@ export default function Contracts() {
       pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400',
       active: 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400',
       expired: 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400',
+      renewed: 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400',
     };
     return colors[status] || colors.draft;
   };
@@ -337,12 +375,11 @@ export default function Contracts() {
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">All Types</option>
-                <option value="service">Service Agreement</option>
-                <option value="nda">NDA</option>
-                <option value="employment">Employment Contract</option>
-                <option value="vendor">Vendor Agreement</option>
-                <option value="lease">Lease Agreement</option>
-                <option value="other">Other</option>
+                {contractTypes.map((type) => (
+                  <option key={type.id} value={type.name}>
+                    {type.description || type.name}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -355,10 +392,11 @@ export default function Contracts() {
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">All Statuses</option>
-                <option value="draft">Draft</option>
-                <option value="pending">Pending Review</option>
-                <option value="active">Active</option>
-                <option value="expired">Expired</option>
+                {contractStatuses.map((status) => (
+                  <option key={status.id} value={status.name}>
+                    {status.description || status.name}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -395,7 +433,19 @@ export default function Contracts() {
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Advanced Filters</h3>
               
               {/* First Row */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                {/* Contract ID (Base ID) */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Contract ID</label>
+                  <input
+                    type="text"
+                    value={filters.baseContractId || ''}
+                    onChange={(e) => handleFilterChange('baseContractId', e.target.value)}
+                    placeholder="Search by Contract ID..."
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
                 {/* Contract Instance ID */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Contract Instance ID</label>
@@ -403,7 +453,7 @@ export default function Contracts() {
                     type="text"
                     value={filters.contractId}
                     onChange={(e) => handleFilterChange('contractId', e.target.value)}
-                    placeholder="Search by ID..."
+                    placeholder="Search by Instance ID..."
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -541,7 +591,7 @@ export default function Contracts() {
                   <tr>
                     <th 
                       onClick={() => handleSort('id')}
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors select-none"
+                      className="w-52 px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors select-none"
                     >
                       <div className="flex items-center gap-2">
                         <span>Contract Instance ID</span>
@@ -552,12 +602,12 @@ export default function Contracts() {
                         )}
                       </div>
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    <th className="w-32 px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                       Contract ID
                     </th>
                     <th 
                       onClick={() => handleSort('contractName')}
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors select-none"
+                      className="w-80 px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors select-none"
                     >
                       <div className="flex items-center gap-2">
                         <span>Contract Name</span>
@@ -646,48 +696,6 @@ export default function Contracts() {
                         )}
                       </div>
                     </th>
-                    <th 
-                      onClick={() => handleSort('createdAt')}
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors select-none"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span>Created On</span>
-                        {sortConfig.key === 'createdAt' && (
-                          <svg className={`w-4 h-4 transition-transform ${sortConfig.direction === 'desc' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                          </svg>
-                        )}
-                      </div>
-                    </th>
-                    <th 
-                      onClick={() => handleSort('createdBy')}
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors select-none"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span>Created By</span>
-                        {sortConfig.key === 'createdBy' && (
-                          <svg className={`w-4 h-4 transition-transform ${sortConfig.direction === 'desc' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                          </svg>
-                        )}
-                      </div>
-                    </th>
-                    <th 
-                      onClick={() => handleSort('lastModified')}
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors select-none"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span>Last Modified</span>
-                        {sortConfig.key === 'lastModified' && (
-                          <svg className={`w-4 h-4 transition-transform ${sortConfig.direction === 'desc' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                          </svg>
-                        )}
-                      </div>
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Actions
-                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -722,20 +730,20 @@ export default function Contracts() {
                           </button>
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-4 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <div className="text-xs text-gray-600 dark:text-gray-400 font-mono">
-                            {contract.contractId || `CTR-${contract.id.substring(0, 8).toUpperCase()}`}
+                            {contract.contractId ? contract.contractId.substring(0, 12) : `CTR-${contract.id.substring(0, 8).toUpperCase()}`}
                           </div>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleCopyId(contract.contractId || `CTR-${contract.id.substring(0, 8).toUpperCase()}`, 'contract');
+                              handleCopyId(contract.contractId || contract.id, 'contract');
                             }}
                             className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
                             title="Copy Contract ID"
                           >
-                            {copiedIds[`${contract.contractId || `CTR-${contract.id.substring(0, 8).toUpperCase()}`}-contract`] ? (
+                            {copiedIds[`${contract.contractId || contract.id}-contract`] ? (
                               <svg className="w-3 h-3 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                               </svg>
@@ -747,10 +755,25 @@ export default function Contracts() {
                           </button>
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900 dark:text-white">
-                          {contract.contractName || 'N/A'}
+                      <td className="px-6 py-4">
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="text-sm font-medium text-gray-900 dark:text-white flex-1">
+                            {contract.contractName || 'N/A'}
+                          </div>
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-indigo-100 dark:bg-indigo-900/20 text-indigo-800 dark:text-indigo-400 flex-shrink-0">
+                            V{contract.version || 1}
+                          </span>
                         </div>
+                        {contract.renewed_to && (
+                          <div className="mt-1 text-xs text-green-600 dark:text-green-400">
+                            ➜ Renewed to V{contract.version + 1}
+                          </div>
+                        )}
+                        {contract.renewed_from && (
+                          <div className="mt-1 text-xs text-blue-600 dark:text-blue-400">
+                            ← From V{contract.version - 1}
+                          </div>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900 dark:text-white">
@@ -773,26 +796,6 @@ export default function Contracts() {
                         <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(contract.status)}`}>
                           {contract.status}
                         </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                        {contract.createdAt ? new Date(contract.createdAt).toLocaleDateString() : '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                        {contract.createdBy || 'N/A'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                        {contract.lastModified ? new Date(contract.lastModified).toLocaleDateString() : '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            router.push(`/contracts/${contract.id}`);
-                          }}
-                          className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
-                        >
-                          View
-                        </button>
                       </td>
                     </tr>
                   ))}

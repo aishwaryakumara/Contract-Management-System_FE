@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import { authAPI } from '@/lib/api';
 
 const AuthContext = createContext(null);
 
@@ -17,21 +18,44 @@ export function AuthProvider({ children }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  // Check for existing session on mount
+  // Check for existing session on mount and verify token
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    const storedToken = localStorage.getItem('token');
-    
-    if (storedUser && storedToken) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch (err) {
-        console.error('Error parsing stored user:', err);
-        localStorage.removeItem('user');
-        localStorage.removeItem('token');
+    async function verifySession() {
+      const storedUser = localStorage.getItem('user');
+      const storedToken = localStorage.getItem('token');
+      
+      if (storedUser && storedToken) {
+        try {
+          // Verify token with backend
+          const response = await authAPI.getCurrentUser();
+          
+          if (response.success && response.data.success) {
+            // Token is valid, use user data from backend
+            const backendUser = response.data.data;
+            setUser(backendUser);
+            localStorage.setItem('user', JSON.stringify(backendUser));
+          } else {
+            // Token is invalid, clear storage
+            console.log('Token verification failed, clearing session');
+            localStorage.removeItem('user');
+            localStorage.removeItem('token');
+            setUser(null);
+          }
+        } catch (err) {
+          console.error('Error verifying session:', err);
+          // On error, try to use stored user but token might be invalid
+          try {
+            setUser(JSON.parse(storedUser));
+          } catch (parseErr) {
+            localStorage.removeItem('user');
+            localStorage.removeItem('token');
+          }
+        }
       }
+      setLoading(false);
     }
-    setLoading(false);
+
+    verifySession();
   }, []);
 
   // Redirect logic

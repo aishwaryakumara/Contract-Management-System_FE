@@ -4,8 +4,10 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import ProtectedLayout from '@/components/ProtectedLayout';
 import { useAuth } from '@/contexts/AuthContext';
+import { contractsAPI, documentsAPI, lookupsAPI } from '@/lib/api';
 import ActivityHistorySidebar from '@/components/ActivityHistorySidebar';
 import ContractProgressBar from '@/components/ContractProgressBar';
+import RenewContractModal from '@/components/RenewContractModal';
 import toast from 'react-hot-toast';
 
 export default function ContractDetails() {
@@ -16,10 +18,16 @@ export default function ContractDetails() {
   const [documents, setDocuments] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [showHistory, setShowHistory] = useState(false);
+  const [showRenewModal, setShowRenewModal] = useState(false);
   const [activityHistory, setActivityHistory] = useState([]);
   const [copiedInstanceId, setCopiedInstanceId] = useState(false);
   const [copiedContractId, setCopiedContractId] = useState(false);
+  
+  // Lookup data
+  const [contractTypes, setContractTypes] = useState([]);
+  const [contractStatuses, setContractStatuses] = useState([]);
   
   const [formData, setFormData] = useState({
     contractName: '',
@@ -48,33 +56,87 @@ export default function ContractDetails() {
     setActivityHistory(history);
   };
 
+  // Fetch lookup data (contract types and statuses)
   useEffect(() => {
-    // Load contract
-    const contracts = JSON.parse(localStorage.getItem('contracts') || '[]');
-    const found = contracts.find(c => c.id === params.id);
-    if (found) {
-      setContract(found);
-      setFormData({
-        contractName: found.contractName || '',
-        clientName: found.clientName,
-        contractType: found.contractType,
-        startDate: found.startDate,
-        endDate: found.endDate || '',
-        value: found.value || '',
-        status: found.status,
-        description: found.description || '',
-      });
+    async function loadLookups() {
+      try {
+        // Fetch contract types
+        const typesResponse = await lookupsAPI.getContractTypes();
+        if (typesResponse.success && typesResponse.data.success) {
+          setContractTypes(typesResponse.data.data || []);
+        }
+        
+        // Fetch contract statuses
+        const statusesResponse = await lookupsAPI.getContractStatuses();
+        if (statusesResponse.success && statusesResponse.data.success) {
+          setContractStatuses(statusesResponse.data.data || []);
+        }
+      } catch (error) {
+        console.error('Error loading lookup data:', error);
+      }
+    }
+    
+    loadLookups();
+  }, []);
+
+  useEffect(() => {
+    async function loadContractDetails() {
+      setIsLoading(true);
+      try {
+        const response = await contractsAPI.getById(params.id);
+        
+        if (response.success && response.data.success) {
+          const contractData = response.data.data.contract;
+          const documentsData = response.data.data.documents || [];
+          
+          setContract(contractData);
+          setDocuments(documentsData);
+          
+          setFormData({
+            contractName: contractData.contractName || '',
+            clientName: contractData.clientName || '',
+            contractType: contractData.contractType || '',
+            startDate: contractData.startDate || '',
+            endDate: contractData.endDate || '',
+            value: contractData.value || '',
+            status: contractData.status || '',
+            description: contractData.description || '',
+          });
+          
+          // Load activity history from localStorage
+          const history = JSON.parse(localStorage.getItem(`contractHistory_${params.id}`) || '[]');
+          setActivityHistory(history);
+        } else {
+          toast.error('Contract not found', { icon: '❌' });
+          router.push('/contracts');
+        }
+      } catch (error) {
+        console.error('Error loading contract:', error);
+        toast.error('Failed to load contract details', { icon: '⚠️' });
+        
+        // Fallback to localStorage
+        const contracts = JSON.parse(localStorage.getItem('contracts') || '[]');
+        const found = contracts.find(c => c.id === params.id);
+        if (found) {
+          setContract(found);
+          setFormData({
+            contractName: found.contractName || '',
+            clientName: found.clientName,
+            contractType: found.contractType,
+            startDate: found.startDate,
+            endDate: found.endDate || '',
+            value: found.value || '',
+            status: found.status,
+            description: found.description || '',
+          });
+        }
+      } finally {
+        setIsLoading(false);
+      }
     }
 
-    // Load documents for this contract
-    const allDocs = JSON.parse(localStorage.getItem('contractDocuments') || '[]');
-    const contractDocs = allDocs.filter(doc => doc.contractId === params.id);
-    setDocuments(contractDocs);
-
-    // Load activity history
-    const history = JSON.parse(localStorage.getItem(`contractHistory_${params.id}`) || '[]');
-    setActivityHistory(history);
-  }, [params.id]);
+    loadContractDetails();
+  }, [params.id, router]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -102,44 +164,76 @@ export default function ContractDetails() {
     });
   };
 
-  const handleSave = () => {
-    const contracts = JSON.parse(localStorage.getItem('contracts') || '[]');
-    const index = contracts.findIndex(c => c.id === params.id);
-    if (index !== -1) {
-      const oldContract = contracts[index];
-      const changes = [];
+  const handleSave = async () => {
+    const loadingToast = toast.loading('Saving changes...', { icon: '⏳' });
+    
+    try {
+      // Prepare update data
+      const updateData = {
+        contractName: formData.contractName,
+        clientName: formData.clientName,
+        contractType: formData.contractType,
+        startDate: formData.startDate,
+        endDate: formData.endDate || null,
+        value: formData.value || null,
+        status: formData.status,
+        description: formData.description || '',
+      };
 
-      // Track what changed
-      Object.keys(formData).forEach(key => {
-        if (oldContract[key] !== formData[key]) {
-          changes.push({
-            field: key,
-            oldValue: oldContract[key],
-            newValue: formData[key]
+      const response = await contractsAPI.update(params.id, updateData);
+      
+      if (response.success && response.data.success) {
+        // Track changes for activity log
+        const oldContract = contract;
+        const changes = [];
+        Object.keys(formData).forEach(key => {
+          if (oldContract[key] !== formData[key]) {
+            changes.push({
+              field: key,
+              oldValue: oldContract[key],
+              newValue: formData[key]
+            });
+          }
+        });
+
+        // Update local state
+        const updatedContract = {
+          ...contract,
+          ...formData,
+          lastModified: response.data.data.lastModified || new Date().toISOString()
+        };
+        
+        setContract(updatedContract);
+        setIsEditing(false);
+
+        // Update localStorage cache
+        const contracts = JSON.parse(localStorage.getItem('contracts') || '[]');
+        const index = contracts.findIndex(c => c.id === params.id);
+        if (index !== -1) {
+          contracts[index] = updatedContract;
+          localStorage.setItem('contracts', JSON.stringify(contracts));
+        }
+
+        // Log activity
+        if (changes.length > 0) {
+          logActivity('modified', {
+            message: `Contract modified`,
+            changes
           });
         }
-      });
 
-      contracts[index] = { 
-        ...contracts[index], 
-        ...formData,
-        lastModified: new Date().toISOString()
-      };
-      localStorage.setItem('contracts', JSON.stringify(contracts));
-      setContract(contracts[index]);
-      setIsEditing(false);
-
-      // Log activity
-      if (changes.length > 0) {
-        logActivity('modified', {
-          message: `Contract modified`,
-          changes
+        toast.dismiss(loadingToast);
+        toast.success('Contract saved successfully!', {
+          icon: '✅',
         });
+      } else {
+        throw new Error(response.data?.error || 'Failed to save contract');
       }
-
-      // Show success toast
-      toast.success('Contract saved successfully!', {
-        icon: '✅',
+    } catch (error) {
+      console.error('Error saving contract:', error);
+      toast.dismiss(loadingToast);
+      toast.error(error.message || 'Failed to save changes', {
+        icon: '❌',
       });
     }
   };
@@ -149,55 +243,111 @@ export default function ContractDetails() {
     if (!file) return;
 
     setIsUploading(true);
-    await new Promise(resolve => setTimeout(resolve, 500));
+    const loadingToast = toast.loading('Uploading document...', { icon: '⏳' });
 
-    const newDoc = {
-      id: Date.now().toString(),
-      contractId: params.id,
-      fileName: file.name,
-      fileSize: file.size,
-      uploadedAt: new Date().toISOString(),
-    };
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
 
-    const allDocs = JSON.parse(localStorage.getItem('contractDocuments') || '[]');
-    allDocs.push(newDoc);
-    localStorage.setItem('contractDocuments', JSON.stringify(allDocs));
-    setDocuments([...documents, newDoc]);
-    setIsUploading(false);
+      const response = await contractsAPI.uploadDocument(params.id, formData);
 
-    // Log activity
-    logActivity('document_uploaded', {
-      message: `Document "${file.name}" uploaded`,
-      fileName: file.name,
-      fileSize: file.size
-    });
+      if (response.success && response.data.success) {
+        const newDoc = response.data.data;
+        
+        setDocuments([...documents, newDoc]);
 
-    // Show success toast
-    toast.success(`Document "${file.name}" uploaded successfully!`, {
-      icon: '📄',
-    });
+        // Log activity
+        logActivity('document_uploaded', {
+          message: `Document "${file.name}" uploaded`,
+          fileName: file.name,
+          fileSize: file.size
+        });
+
+        toast.dismiss(loadingToast);
+        toast.success(`Document "${file.name}" uploaded successfully!`, {
+          icon: '📄',
+        });
+      } else {
+        throw new Error(response.data?.error || 'Upload failed');
+      }
+    } catch (error) {
+      console.error('Error uploading document:', error);
+      toast.dismiss(loadingToast);
+      toast.error(error.message || 'Failed to upload document', {
+        icon: '❌',
+      });
+    } finally {
+      setIsUploading(false);
+    }
   };
 
-  const handleDeleteDocument = (docId) => {
-    if (!confirm('Delete this document?')) return;
-    
+  const handleDeleteDocument = async (docId) => {
     const doc = documents.find(d => d.id === docId);
-    const allDocs = JSON.parse(localStorage.getItem('contractDocuments') || '[]');
-    const filtered = allDocs.filter(doc => doc.id !== docId);
-    localStorage.setItem('contractDocuments', JSON.stringify(filtered));
-    setDocuments(documents.filter(doc => doc.id !== docId));
+    
+    if (!confirm(`Delete "${doc?.fileName || 'this document'}"?`)) return;
+    
+    const loadingToast = toast.loading('Deleting document...', { icon: '⏳' });
 
-    // Log activity
-    if (doc) {
-      logActivity('document_deleted', {
-        message: `Document "${doc.fileName}" deleted`,
-        fileName: doc.fileName
-      });
+    try {
+      const response = await documentsAPI.delete(docId);
 
-      // Show success toast
-      toast.success(`Document "${doc.fileName}" deleted successfully!`, {
-        icon: '🗑️',
+      if (response.success && response.data.success) {
+        // Remove from local state
+        setDocuments(documents.filter(d => d.id !== docId));
+
+        // Log activity
+        if (doc) {
+          logActivity('document_deleted', {
+            message: `Document "${doc.fileName}" deleted`,
+            fileName: doc.fileName
+          });
+        }
+
+        toast.dismiss(loadingToast);
+        toast.success(`Document "${doc?.fileName}" deleted successfully!`, {
+          icon: '🗑️',
+        });
+      } else {
+        throw new Error(response.data?.error || 'Failed to delete document');
+      }
+    } catch (error) {
+      console.error('Error deleting document:', error);
+      toast.dismiss(loadingToast);
+      toast.error(error.message || 'Failed to delete document', {
+        icon: '❌',
       });
+    }
+  };
+
+  const handleRenew = async (renewFormData) => {
+    const loadingToast = toast.loading('Creating renewal...', { icon: '⏳' });
+
+    try {
+      const response = await contractsAPI.renew(params.id, renewFormData);
+
+      if (response.success && response.data.success) {
+        const { new_contract_id, new_version, old_version } = response.data.data;
+
+        toast.dismiss(loadingToast);
+        toast.success(`Contract renewed successfully! Created ${new_version}`, {
+          icon: '✅',
+          duration: 4000,
+        });
+
+        // Redirect to new contract version
+        setTimeout(() => {
+          router.push(`/contracts/${new_contract_id}`);
+        }, 500);
+      } else {
+        throw new Error(response.data?.error || 'Failed to renew contract');
+      }
+    } catch (error) {
+      console.error('Error renewing contract:', error);
+      toast.dismiss(loadingToast);
+      toast.error(error.message || 'Failed to renew contract', {
+        icon: '❌',
+      });
+      throw error;
     }
   };
 
@@ -207,9 +357,26 @@ export default function ContractDetails() {
       pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400',
       active: 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400',
       expired: 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400',
+      renewed: 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400',
     };
     return colors[status] || colors.draft;
   };
+
+  if (isLoading) {
+    return (
+      <ProtectedLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="flex flex-col items-center gap-3">
+            <svg className="animate-spin h-8 w-8 text-blue-600 dark:text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <div className="text-gray-600 dark:text-gray-400">Loading contract...</div>
+          </div>
+        </div>
+      </ProtectedLayout>
+    );
+  }
 
   if (!contract) {
     return (
@@ -242,7 +409,7 @@ export default function ContractDetails() {
               <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
                 {contract.clientName}
               </h1>
-              <div className="mt-1 flex items-center gap-3">
+              <div className="mt-1 flex items-center gap-3 flex-wrap">
                 <div className="flex items-center gap-1">
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     Instance: {contract.id.substring(0, 12)}...
@@ -284,7 +451,39 @@ export default function ContractDetails() {
                     )}
                   </button>
                 </div>
+                <span className="text-gray-400">|</span>
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 dark:bg-indigo-900/20 text-indigo-800 dark:text-indigo-400">
+                  Version {contract.version || 1}
+                </span>
               </div>
+              
+              {/* Renewal Info */}
+              {(contract.renewed_to || contract.renewed_from) && (
+                <div className="mt-2 flex items-center gap-3 text-sm">
+                  {contract.renewed_from && (
+                    <button
+                      onClick={() => router.push(`/contracts/${contract.renewed_from}`)}
+                      className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                      </svg>
+                      Previous Version (V{contract.version - 1})
+                    </button>
+                  )}
+                  {contract.renewed_to && (
+                    <button
+                      onClick={() => router.push(`/contracts/${contract.renewed_to}`)}
+                      className="flex items-center gap-1 text-green-600 dark:text-green-400 hover:underline"
+                    >
+                      Renewed to Version {contract.version + 1}
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
           <div className="flex gap-3">
@@ -297,6 +496,20 @@ export default function ContractDetails() {
               </svg>
               View History
             </button>
+            
+            {/* Renew Button - Only show for active contracts that haven't been renewed */}
+            {contract.status === 'active' && !contract.renewed_to && (
+              <button
+                onClick={() => setShowRenewModal(true)}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Renew Contract
+              </button>
+            )}
+            
             {!isEditing ? (
               <button
                 onClick={() => setIsEditing(true)}
@@ -372,12 +585,11 @@ export default function ContractDetails() {
                   onChange={handleInputChange}
                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="service">Service Agreement</option>
-                  <option value="nda">NDA</option>
-                  <option value="employment">Employment Contract</option>
-                  <option value="vendor">Vendor Agreement</option>
-                  <option value="lease">Lease Agreement</option>
-                  <option value="other">Other</option>
+                  {contractTypes.map((type) => (
+                    <option key={type.id} value={type.name}>
+                      {type.description || type.name}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>
@@ -416,13 +628,25 @@ export default function ContractDetails() {
                   name="status"
                   value={formData.status}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                  disabled={contract.status === 'active' || contract.status === 'renewed'}
+                  className={`w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 ${(contract.status === 'active' || contract.status === 'renewed') ? 'opacity-60 cursor-not-allowed' : ''}`}
                 >
-                  <option value="draft">Draft</option>
-                  <option value="pending">Pending Review</option>
-                  <option value="active">Active</option>
-                  <option value="expired">Expired</option>
+                  {contractStatuses.map((status) => (
+                    <option key={status.id} value={status.name}>
+                      {status.description || status.name}
+                    </option>
+                  ))}
                 </select>
+                {contract.status === 'active' && (
+                  <p className="mt-1 text-xs text-yellow-600 dark:text-yellow-400">
+                    🔒 Active contracts cannot change status. You can renew to create a new version.
+                  </p>
+                )}
+                {contract.status === 'renewed' && (
+                  <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">
+                    🔒 This is an archived version and cannot be modified.
+                  </p>
+                )}
               </div>
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Description</label>
@@ -555,11 +779,11 @@ export default function ContractDetails() {
           )}
         </div>
 
-        {/* Associated Documents */}
+        {/* Documents Section */}
         <div className="bg-white dark:bg-gray-900 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
           <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-              Associated Documents ({documents.length})
+              Documents ({documents.length})
             </h2>
             <div>
               <input
@@ -568,6 +792,7 @@ export default function ContractDetails() {
                 className="hidden"
                 onChange={handleFileUpload}
                 disabled={isUploading}
+                accept=".pdf,.doc,.docx"
               />
               <label
                 htmlFor="doc-upload"
@@ -586,7 +811,7 @@ export default function ContractDetails() {
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                     </svg>
-                    Upload Document
+                    Upload Supporting Document
                   </>
                 )}
               </label>
@@ -601,63 +826,90 @@ export default function ContractDetails() {
               <p className="text-gray-500 dark:text-gray-400">No documents uploaded yet</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 dark:bg-gray-800">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      File Name
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Size
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Uploaded
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {documents.map((doc) => (
-                    <tr key={doc.id} className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <svg className="w-5 h-5 text-blue-600 dark:text-blue-400 mr-3" fill="currentColor" viewBox="0 0 20 20">
+            <div className="divide-y divide-gray-200 dark:divide-gray-700">
+              {/* Main Contract Document */}
+              {documents.length > 0 && (
+                <div className="p-6">
+                  <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                    </svg>
+                    Main Contract Document
+                  </h3>
+                  <div className="bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="flex-shrink-0">
+                          <svg className="w-8 h-8 text-blue-600 dark:text-blue-400" fill="currentColor" viewBox="0 0 20 20">
                             <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
                           </svg>
-                          <span className="text-sm font-medium text-gray-900 dark:text-white">
-                            {doc.fileName}
-                          </span>
                         </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                        {(doc.fileSize / 1024).toFixed(2)} KB
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                        {new Date(doc.uploadedAt).toLocaleDateString()}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <div className="flex items-center gap-3">
-                          <button className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300">
+                        <div>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">
+                            {documents[0].fileName}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {(documents[0].fileSize / 1024).toFixed(2)} KB • Uploaded {new Date(documents[0].uploadedAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button className="px-3 py-1.5 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/20 rounded transition-colors">
+                          View
+                        </button>
+                        <button className="px-3 py-1.5 text-sm text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/20 rounded transition-colors">
+                          Download
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Supporting Documents */}
+              {documents.length > 1 && (
+                <div className="p-6">
+                  <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Supporting Documents ({documents.length - 1})
+                  </h3>
+                  <div className="space-y-2">
+                    {documents.slice(1).map((doc) => (
+                      <div key={doc.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-750 transition-colors">
+                        <div className="flex items-center gap-3 flex-1">
+                          <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                          </svg>
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-gray-900 dark:text-white">
+                              {doc.fileName}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              {(doc.fileSize / 1024).toFixed(2)} KB • {new Date(doc.uploadedAt).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button className="px-3 py-1.5 text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/20 rounded transition-colors">
                             View
                           </button>
-                          <button className="text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300">
+                          <button className="px-3 py-1.5 text-xs text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/20 rounded transition-colors">
                             Download
                           </button>
                           <button
                             onClick={() => handleDeleteDocument(doc.id)}
-                            className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
+                            className="px-3 py-1.5 text-xs text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/20 rounded transition-colors"
                           >
                             Delete
                           </button>
                         </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -667,6 +919,14 @@ export default function ContractDetails() {
           isOpen={showHistory}
           onClose={() => setShowHistory(false)}
           activityHistory={activityHistory}
+        />
+
+        {/* Renewal Modal */}
+        <RenewContractModal
+          contract={contract}
+          isOpen={showRenewModal}
+          onClose={() => setShowRenewModal(false)}
+          onRenewSuccess={handleRenew}
         />
       </div>
     </ProtectedLayout>

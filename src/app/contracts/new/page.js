@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { contractsAPI, lookupsAPI } from '@/lib/api';
 import ProtectedLayout from '@/components/ProtectedLayout';
 import mammoth from 'mammoth';
 import toast from 'react-hot-toast';
@@ -15,6 +16,9 @@ export default function CreateContract() {
   const [documentHtml, setDocumentHtml] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   
+  // Lookup data
+  const [contractTypes, setContractTypes] = useState([]);
+  
   const [formData, setFormData] = useState({
     contractName: '',
     clientName: '',
@@ -25,6 +29,22 @@ export default function CreateContract() {
     status: 'draft',
     description: '',
   });
+
+  // Fetch contract types on mount
+  useEffect(() => {
+    async function loadContractTypes() {
+      try {
+        const response = await lookupsAPI.getContractTypes();
+        if (response.success && response.data.success) {
+          setContractTypes(response.data.data || []);
+        }
+      } catch (error) {
+        console.error('Error loading contract types:', error);
+      }
+    }
+    
+    loadContractTypes();
+  }, []);
 
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
@@ -72,32 +92,61 @@ export default function CreateContract() {
       icon: '⏳',
     });
     
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    try {
+      // Prepare FormData for multipart/form-data request
+      const contractFormData = new FormData();
+      contractFormData.append('contractName', formData.contractName);
+      contractFormData.append('clientName', formData.clientName);
+      contractFormData.append('contractType', formData.contractType);
+      contractFormData.append('startDate', formData.startDate);
+      contractFormData.append('endDate', formData.endDate || '');
+      contractFormData.append('value', formData.value || '0');
+      contractFormData.append('status', formData.status);
+      contractFormData.append('description', formData.description || '');
+      
+      // Add file if uploaded
+      if (uploadedFile) {
+        contractFormData.append('file', uploadedFile);
+      }
 
-    const now = new Date().toISOString();
-    const newContract = {
-      id: generateUUID(),
-      ...formData,
-      fileName: uploadedFile?.name || 'No file',
-      createdAt: now,
-      createdBy: user?.email || 'Unknown User',
-      lastModified: now,
-    };
-
-    const existingContracts = JSON.parse(localStorage.getItem('contracts') || '[]');
-    existingContracts.push(newContract);
-    localStorage.setItem('contracts', JSON.stringify(existingContracts));
-    
-    // Dismiss loading toast and show success
-    toast.dismiss(loadingToast);
-    toast.success('Contract created successfully!', {
-      icon: '✅',
-      duration: 4000,
-    });
-    
-    setTimeout(() => {
-      router.push('/contracts');
-    }, 500);
+      // Create contract via API
+      const response = await contractsAPI.create(contractFormData);
+      
+      if (response.success && response.data.success) {
+        const createdContract = response.data.data;
+        
+        // Update localStorage cache
+        const existingContracts = JSON.parse(localStorage.getItem('contracts') || '[]');
+        existingContracts.push(createdContract);
+        localStorage.setItem('contracts', JSON.stringify(existingContracts));
+        
+        // Dismiss loading toast and show success
+        toast.dismiss(loadingToast);
+        toast.success('Contract created successfully!', {
+          icon: '✅',
+          duration: 4000,
+        });
+        
+        setTimeout(() => {
+          router.push('/contracts');
+        }, 500);
+      } else {
+        // Show backend error message
+        const errorMsg = response.data?.error || response.data?.message || 'Failed to create contract';
+        throw new Error(errorMsg);
+      }
+    } catch (error) {
+      console.error('Error creating contract:', error);
+      toast.dismiss(loadingToast);
+      
+      // Show detailed error message
+      const errorMessage = error.message || 'Failed to create contract. Please try again.';
+      toast.error(errorMessage, {
+        icon: '❌',
+        duration: 5000,
+      });
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -173,12 +222,11 @@ export default function CreateContract() {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Contract Type *</label>
                   <select name="contractType" required value={formData.contractType} onChange={handleInputChange} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
                     <option value="">Select type</option>
-                    <option value="service">Service Agreement</option>
-                    <option value="nda">NDA</option>
-                    <option value="employment">Employment Contract</option>
-                    <option value="vendor">Vendor Agreement</option>
-                    <option value="lease">Lease Agreement</option>
-                    <option value="other">Other</option>
+                    {contractTypes.map((type) => (
+                      <option key={type.id} value={type.name}>
+                        {type.description || type.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -199,12 +247,12 @@ export default function CreateContract() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Status</label>
-                  <select name="status" value={formData.status} onChange={handleInputChange} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
-                    <option value="draft">Draft</option>
-                    <option value="pending">Pending Review</option>
-                    <option value="active">Active</option>
-                    <option value="expired">Expired</option>
-                  </select>
+                  <div className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 flex items-center gap-2">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-300">
+                      Draft
+                    </span>
+                    <span className="text-sm">All new contracts start as Draft</span>
+                  </div>
                 </div>
 
                 <div>

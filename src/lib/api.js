@@ -134,6 +134,10 @@ export const contractsAPI = {
   async uploadDocument(contractId, formData) {
     return apiClient.post(`/contracts/${contractId}/documents`, formData);
   },
+  
+  async renew(contractId, formData) {
+    return apiClient.post(`/contracts/${contractId}/renew`, formData);
+  },
 };
 
 /**
@@ -142,5 +146,18 @@ export const contractsAPI = {
 export const documentsAPI = {
   async delete(documentId) {
     return apiClient.delete(`/documents/${documentId}`);
+  },
+};
+
+/**
+ * Lookup APIs - Contract Types and Statuses
+ */
+export const lookupsAPI = {
+  async getContractTypes() {
+    return apiClient.get('/contract-types');
+  },
+  
+  async getContractStatuses() {
+    return apiClient.get('/contract-status');
   },
 };

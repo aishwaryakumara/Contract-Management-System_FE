@@ -41,8 +41,8 @@ export default function ProtectedLayout({ children }) {
         </div>
         
         {/* Main content area - with left margin to account for sidebar */}
-        <main className="flex-1 ml-64 px-6 py-8 overflow-auto">
-          <div className="max-w-7xl mx-auto">
+        <main className="flex-1 ml-64 px-8 py-8 overflow-auto">
+          <div className="max-w-[1600px] mx-auto">
             {children}
           </div>
         </main>
