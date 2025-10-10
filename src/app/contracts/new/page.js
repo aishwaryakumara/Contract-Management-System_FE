@@ -15,6 +15,7 @@ export default function CreateContract() {
   const [uploadedFile, setUploadedFile] = useState(null);
   const [documentHtml, setDocumentHtml] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isDataExtracted, setIsDataExtracted] = useState(false);
   
   // Lookup data
   const [contractTypes, setContractTypes] = useState([]);
@@ -52,17 +53,60 @@ export default function CreateContract() {
       setUploadedFile(file);
       setIsProcessing(true);
       
+      // Show extraction toast
+      const extractionToast = toast.loading('Extracting data from document...', {
+        duration: 3000,
+      });
+      
       try {
-        const arrayBuffer = await file.arrayBuffer();
-        const result = await mammoth.convertToHtml({ arrayBuffer });
-        setDocumentHtml(result.value);
-        toast.success(`Document "${file.name}" loaded successfully!`, {
-          icon: '📄',
-        });
+        // Step 1: Extract data using NER
+        const extractFormData = new FormData();
+        extractFormData.append('file', file);
+        
+        const extractResponse = await contractsAPI.extractData(extractFormData);
+        
+        if (extractResponse.success && extractResponse.data.success) {
+          const extracted = extractResponse.data.data;
+          
+          // Auto-fill form with extracted data
+          setFormData(prev => ({
+            ...prev,
+            contractName: extracted.contract_name || prev.contractName,
+            clientName: extracted.client_name || prev.clientName,
+            contractType: extracted.contract_type || prev.contractType,
+            startDate: extracted.start_date || prev.startDate,
+            endDate: extracted.end_date || prev.endDate,
+            value: extracted.value || prev.value,
+            description: extracted.description || prev.description,
+          }));
+          
+          setIsDataExtracted(true);
+          toast.success('Data extracted successfully! Please review and confirm.', {
+            id: extractionToast,
+            duration: 4000,
+          });
+        } else {
+          setIsDataExtracted(false);
+          toast.error('Could not extract data. Please fill manually.', {
+            id: extractionToast,
+          });
+        }
+        
+        // Step 2: Also load document preview (for .docx files)
+        if (file.name.endsWith('.docx')) {
+          try {
+            const arrayBuffer = await file.arrayBuffer();
+            const result = await mammoth.convertToHtml({ arrayBuffer });
+            setDocumentHtml(result.value);
+          } catch (error) {
+            console.error('Error rendering document preview:', error);
+          }
+        }
+        
       } catch (error) {
-        console.error('Error reading document:', error);
-        toast.error('Error loading document. Please try again.', {
-          icon: '❌',
+        console.error('Error extracting data:', error);
+        toast.error('Extraction failed. Please fill the form manually.', {
+          id: extractionToast,
         });
       } finally {
         setIsProcessing(false);
@@ -161,7 +205,7 @@ export default function CreateContract() {
           <div className="bg-white dark:bg-gray-900 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-8">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-6 text-center">Upload Contract Document</h2>
             <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-16 text-center hover:border-blue-500 dark:hover:border-blue-400 transition-colors">
-              <input type="file" id="file-upload" className="hidden" accept=".doc,.docx" onChange={handleFileChange} disabled={isProcessing} />
+              <input type="file" id="file-upload" className="hidden" accept=".pdf,.doc,.docx" onChange={handleFileChange} disabled={isProcessing} />
               <label htmlFor="file-upload" className="cursor-pointer flex flex-col items-center">
                 {isProcessing ? (
                   <>
@@ -188,21 +232,43 @@ export default function CreateContract() {
         {uploadedFile && (
           <form onSubmit={handleSubmit}>
             <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 flex items-center justify-between mb-6">
-              <div className="flex items-center">
-                <svg className="w-6 h-6 text-blue-600 mr-3" fill="currentColor" viewBox="0 0 20 20">
+              <div className="flex items-center gap-3">
+                <svg className="w-6 h-6 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
                 </svg>
                 <div>
                   <p className="text-sm font-medium text-blue-900 dark:text-blue-300">{uploadedFile.name}</p>
                   <p className="text-xs text-blue-600 dark:text-blue-400">{(uploadedFile.size / 1024).toFixed(2)} KB</p>
                 </div>
+                {isDataExtracted && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 border border-green-200 dark:border-green-800">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Auto-filled
+                  </span>
+                )}
               </div>
-              <button type="button" onClick={() => { setUploadedFile(null); setDocumentHtml(''); }} className="text-red-600 hover:text-red-800">
+              <button type="button" onClick={() => { setUploadedFile(null); setDocumentHtml(''); setIsDataExtracted(false); }} className="text-red-600 hover:text-red-800">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
+            
+            {isDataExtracted && (
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-lg p-4 mb-6 border border-green-200 dark:border-green-800">
+                <div className="flex items-start gap-3">
+                  <svg className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className="text-sm">
+                    <p className="font-semibold text-green-900 dark:text-green-100 mb-1">Data Extracted Successfully</p>
+                    <p className="text-green-700 dark:text-green-300">The form has been automatically filled with data from your document. Please review and edit if needed before submitting.</p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="bg-white dark:bg-gray-900 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 space-y-4">

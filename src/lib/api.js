@@ -138,6 +138,10 @@ export const contractsAPI = {
   async renew(contractId, formData) {
     return apiClient.post(`/contracts/${contractId}/renew`, formData);
   },
+  
+  async extractData(formData) {
+    return apiClient.post('/contracts/extract', formData);
+  },
 };
 
 /**
