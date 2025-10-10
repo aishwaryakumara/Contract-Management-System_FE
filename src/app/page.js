@@ -150,16 +150,16 @@ export default function Home() {
                     <td className="py-2 px-4">When user renews</td>
                   </tr>
                   <tr className="border-b border-gray-100 dark:border-gray-800">
-                    <td className="py-2 px-4">Expired</td>
-                    <td className="py-2 px-4">Renewed</td>
+                    <td className="py-2 px-4">Renew</td>
+                    <td className="py-2 px-4">Any</td>
                     <td className="text-center py-2 px-4">
-                      <span className="inline-flex items-center text-red-600 dark:text-red-400">
+                    <span className="inline-flex items-center text-red-600 dark:text-red-400">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                         </svg>
                       </span>
                     </td>
-                    <td className="py-2 px-4">Cannot renew expired contracts</td>
+                    <td className="py-2 px-4">Make changes in new drafted version</td>
                   </tr>
                   <tr>
                     <td className="py-2 px-4">Expired</td>

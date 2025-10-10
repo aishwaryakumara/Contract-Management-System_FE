@@ -685,7 +685,7 @@ export default function ContractDetails() {
                 )}
               </div>
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Description</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Comments</label>
                 <textarea
                   name="description"
                   rows={4}
@@ -806,10 +806,10 @@ export default function ContractDetails() {
                 </div>
               </div>
 
-              {/* Description - Full Width if exists */}
+              {/* Comments - Full Width if exists */}
               {contract.description && (
                 <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Description</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Comments</p>
                   <p className="text-base text-gray-900 dark:text-white">{contract.description}</p>
                 </div>
               )}
