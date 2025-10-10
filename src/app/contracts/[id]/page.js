@@ -628,23 +628,34 @@ export default function ContractDetails() {
                   name="status"
                   value={formData.status}
                   onChange={handleInputChange}
-                  disabled={contract.status === 'active' || contract.status === 'renewed'}
-                  className={`w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 ${(contract.status === 'active' || contract.status === 'renewed') ? 'opacity-60 cursor-not-allowed' : ''}`}
+                  disabled={contract.status === 'renewed' || contract.status === 'expired'}
+                  className={`w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 ${(contract.status === 'renewed' || contract.status === 'expired') ? 'opacity-60 cursor-not-allowed' : ''}`}
                 >
-                  {contractStatuses.map((status) => (
-                    <option key={status.id} value={status.name}>
-                      {status.description || status.name}
-                    </option>
-                  ))}
+                  {contractStatuses.map((status) => {
+                    // For active contracts, only show active and expired options
+                    if (contract.status === 'active' && status.name !== 'active' && status.name !== 'expired') {
+                      return null;
+                    }
+                    return (
+                      <option key={status.id} value={status.name}>
+                        {status.description || status.name}
+                      </option>
+                    );
+                  })}
                 </select>
                 {contract.status === 'active' && (
                   <p className="mt-1 text-xs text-yellow-600 dark:text-yellow-400">
-                    🔒 Active contracts cannot change status. You can renew to create a new version.
+                    ⚠️ Active contracts can only be marked as expired. Use "Renew" to create a new version.
                   </p>
                 )}
                 {contract.status === 'renewed' && (
                   <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">
                     🔒 This is an archived version and cannot be modified.
+                  </p>
+                )}
+                {contract.status === 'expired' && (
+                  <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                    🔒 Expired contracts are locked. Create a new contract or renew if needed.
                   </p>
                 )}
               </div>

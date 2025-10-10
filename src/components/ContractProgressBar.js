@@ -1,22 +1,64 @@
 'use client';
 
+import { useState, useEffect } from 'react';
+import { lookupsAPI } from '@/lib/api';
+
 export default function ContractProgressBar({ status }) {
-  const stages = [
-    { key: 'created', label: 'Created' },
-    { key: 'draft', label: 'Draft' },
-    { key: 'pending', label: 'Pending Review' },
-    { key: 'active', label: 'Active' },
-    { key: 'expired', label: 'Expired' },
-  ];
+  const [contractStatuses, setContractStatuses] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Fetch statuses from API
+  useEffect(() => {
+    async function loadStatuses() {
+      try {
+        const response = await lookupsAPI.getContractStatuses();
+        if (response.success && response.data.success) {
+          const statuses = response.data.data || [];
+          // Filter and order statuses for progress bar (exclude renewed)
+          const progressStatuses = statuses.filter(s => s.name !== 'renewed');
+          setContractStatuses(progressStatuses);
+        }
+      } catch (error) {
+        console.error('Error loading statuses:', error);
+        // Fallback to hardcoded statuses
+        setContractStatuses([
+          { id: 1, name: 'draft', description: 'Draft' },
+          { id: 2, name: 'pending', description: 'Pending Review' },
+          { id: 3, name: 'active', description: 'Active' },
+          { id: 4, name: 'expired', description: 'Expired' },
+        ]);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    
+    loadStatuses();
+  }, []);
+
+  // Special handling for renewed contracts
+  if (status === 'renewed') {
+    return (
+      <div className="hidden lg:block bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl shadow-sm border border-blue-200 dark:border-blue-800 p-8">
+        <div className="flex items-center justify-center gap-4">
+          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg">
+            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </div>
+          <div>
+            <h3 className="text-xl font-bold text-blue-900 dark:text-blue-100">Archived Version</h3>
+            <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
+              This contract has been renewed and is now archived. Check the renewed version for the active contract.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const getStageIndex = (status) => {
-    const mapping = {
-      'draft': 1,
-      'pending': 2,
-      'active': 3,
-      'expired': 4,
-    };
-    return mapping[status] || 1;
+    const index = contractStatuses.findIndex(s => s.name === status);
+    return index !== -1 ? index : 0;
   };
 
   const getStageIcon = (stageKey, isCompleted) => {
@@ -64,17 +106,33 @@ export default function ContractProgressBar({ status }) {
 
   const currentStageIndex = getStageIndex(status);
 
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="hidden lg:block bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-8">
+        <div className="flex items-center justify-center">
+          <div className="animate-pulse flex space-x-4">
+            <div className="h-12 w-12 bg-gray-300 dark:bg-gray-700 rounded-full"></div>
+            <div className="h-12 w-12 bg-gray-300 dark:bg-gray-700 rounded-full"></div>
+            <div className="h-12 w-12 bg-gray-300 dark:bg-gray-700 rounded-full"></div>
+            <div className="h-12 w-12 bg-gray-300 dark:bg-gray-700 rounded-full"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="hidden lg:block bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-8">
       <div className="flex items-center justify-between">
         {/* Stages */}
-        {stages.map((stage, index) => {
+        {contractStatuses.map((stage, index) => {
           const isCompleted = index <= currentStageIndex;
           const isCurrent = index === currentStageIndex;
-          const isLast = index === stages.length - 1;
+          const isLast = index === contractStatuses.length - 1;
           
           return (
-            <div key={stage.key} className="flex items-center flex-1">
+            <div key={stage.id} className="flex items-center flex-1">
               <div className="flex flex-col items-center">
                 {/* Circle */}
                 <div className={`
@@ -84,7 +142,7 @@ export default function ContractProgressBar({ status }) {
                     : 'bg-white dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600'}
                   ${isCurrent ? 'ring-4 ring-blue-200 dark:ring-blue-900/50 scale-110' : ''}
                 `}>
-                  {getStageIcon(stage.key, isCompleted)}
+                  {getStageIcon(stage.name, isCompleted)}
                   
                   {/* Pulse effect for current */}
                   {isCurrent && (
@@ -100,7 +158,7 @@ export default function ContractProgressBar({ status }) {
                     : 'text-gray-500 dark:text-gray-500'}
                   ${isCurrent ? 'scale-105' : ''}
                 `}>
-                  {stage.label}
+                  {stage.description || stage.name}
                 </p>
                 
                 {/* Badge for current stage */}
