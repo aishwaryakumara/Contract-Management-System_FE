@@ -163,6 +163,17 @@ export default function ContractDetails() {
   };
 
   const handleSave = async () => {
+    // Check if status is changing to 'active' from 'draft' or 'pending'
+    if (formData.status === 'active' && ['draft', 'pending'].includes(contract.status)) {
+      const confirmed = window.confirm(
+        'Confirm changing status to active - This action cannot be reverted.\n\nOnce active, the contract fields will be locked and can only be expired or renewed.'
+      );
+      
+      if (!confirmed) {
+        return; // User cancelled, don't proceed
+      }
+    }
+    
     const loadingToast = toast.loading('Saving changes...', { icon: '⏳' });
     
     try {
@@ -502,7 +513,7 @@ export default function ContractDetails() {
               View History
             </button>
             
-            {/* Renew Button - Only show for active contracts that haven't been renewed */}
+            {/* Renew Button - Only show for active contracts that haven't been renewed (not expired) */}
             {contract.status === 'active' && !contract.renewed_to && (
               <button
                 onClick={() => setShowRenewModal(true)}
@@ -562,15 +573,15 @@ export default function ContractDetails() {
           
           {isEditing ? (
             <>
-              {contract.status === 'active' && (
+              {['active', 'renewed', 'expired'].includes(contract.status) && (
                 <div className="mb-6 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
                   <div className="flex items-start gap-3">
                     <svg className="w-5 h-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                     </svg>
                     <div className="text-sm text-yellow-800 dark:text-yellow-200">
-                      <p className="font-semibold mb-1">Active Contract - View Only</p>
-                      <p>Active contracts cannot be edited. Only the status field can be changed to expire the contract.</p>
+                      <p className="font-semibold mb-1">Locked Contract - View Only</p>
+                      <p>Active, Renewed, and Expired contracts are locked and cannot be edited.</p>
                     </div>
                   </div>
                 </div>
@@ -583,8 +594,8 @@ export default function ContractDetails() {
                     name="contractName"
                     value={formData.contractName}
                     onChange={handleInputChange}
-                    disabled={contract.status === 'active'}
-                    className={`w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 ${contract.status === 'active' ? 'opacity-60 cursor-not-allowed' : ''}`}
+                    disabled={['active', 'renewed', 'expired'].includes(contract.status)}
+                    className={`w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 ${['active', 'renewed', 'expired'].includes(contract.status) ? 'opacity-60 cursor-not-allowed' : ''}`}
                   />
                 </div>
                 <div>
@@ -594,8 +605,8 @@ export default function ContractDetails() {
                     name="clientName"
                     value={formData.clientName}
                     onChange={handleInputChange}
-                    disabled={contract.status === 'active'}
-                    className={`w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 ${contract.status === 'active' ? 'opacity-60 cursor-not-allowed' : ''}`}
+                    disabled={['active', 'renewed', 'expired'].includes(contract.status)}
+                    className={`w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 ${['active', 'renewed', 'expired'].includes(contract.status) ? 'opacity-60 cursor-not-allowed' : ''}`}
                   />
                 </div>
                 <div>
@@ -604,8 +615,8 @@ export default function ContractDetails() {
                     name="contractType"
                     value={formData.contractType}
                     onChange={handleInputChange}
-                    disabled={contract.status === 'active'}
-                    className={`w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 ${contract.status === 'active' ? 'opacity-60 cursor-not-allowed' : ''}`}
+                    disabled={['active', 'renewed', 'expired'].includes(contract.status)}
+                    className={`w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 ${['active', 'renewed', 'expired'].includes(contract.status) ? 'opacity-60 cursor-not-allowed' : ''}`}
                   >
                     {contractTypes.map((type) => (
                       <option key={type.id} value={type.name}>
@@ -621,8 +632,8 @@ export default function ContractDetails() {
                     name="startDate"
                     value={formData.startDate}
                     onChange={handleInputChange}
-                    disabled={contract.status === 'active'}
-                    className={`w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 ${contract.status === 'active' ? 'opacity-60 cursor-not-allowed' : ''}`}
+                    disabled={['active', 'renewed', 'expired'].includes(contract.status)}
+                    className={`w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 ${['active', 'renewed', 'expired'].includes(contract.status) ? 'opacity-60 cursor-not-allowed' : ''}`}
                   />
                 </div>
                 <div>
@@ -632,8 +643,8 @@ export default function ContractDetails() {
                     name="endDate"
                     value={formData.endDate}
                     onChange={handleInputChange}
-                    disabled={contract.status === 'active'}
-                    className={`w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 ${contract.status === 'active' ? 'opacity-60 cursor-not-allowed' : ''}`}
+                    disabled={['active', 'renewed', 'expired'].includes(contract.status)}
+                    className={`w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 ${['active', 'renewed', 'expired'].includes(contract.status) ? 'opacity-60 cursor-not-allowed' : ''}`}
                   />
                 </div>
                 <div>
@@ -643,8 +654,8 @@ export default function ContractDetails() {
                     name="value"
                     value={formData.value}
                     onChange={handleInputChange}
-                    disabled={contract.status === 'active'}
-                    className={`w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 ${contract.status === 'active' ? 'opacity-60 cursor-not-allowed' : ''}`}
+                    disabled={['active', 'renewed', 'expired'].includes(contract.status)}
+                    className={`w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 ${['active', 'renewed', 'expired'].includes(contract.status) ? 'opacity-60 cursor-not-allowed' : ''}`}
                   />
                 </div>
               <div>
@@ -653,12 +664,12 @@ export default function ContractDetails() {
                   name="status"
                   value={formData.status}
                   onChange={handleInputChange}
-                  disabled={contract.status === 'renewed' || contract.status === 'expired'}
-                  className={`w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 ${(contract.status === 'renewed' || contract.status === 'expired') ? 'opacity-60 cursor-not-allowed' : ''}`}
+                  disabled={['renewed', 'expired'].includes(contract.status)}
+                  className={`w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 ${['renewed', 'expired'].includes(contract.status) ? 'opacity-60 cursor-not-allowed' : ''}`}
                 >
                   {contractStatuses.map((status) => {
-                    // For active contracts, only show active and expired options
-                    if (contract.status === 'active' && status.name !== 'active' && status.name !== 'expired') {
+                    // For locked contracts (active, renewed, expired), limit status options
+                    if (['active', 'renewed', 'expired'].includes(contract.status) && !['active', 'renewed', 'expired'].includes(status.name)) {
                       return null;
                     }
                     return (
@@ -668,11 +679,6 @@ export default function ContractDetails() {
                     );
                   })}
                 </select>
-                {contract.status === 'active' && (
-                  <p className="mt-1 text-xs text-yellow-600 dark:text-yellow-400">
-                    ⚠️ Active contracts can only be marked as expired. Use "Renew" to create a new version.
-                  </p>
-                )}
                 {contract.status === 'renewed' && (
                   <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">
                     🔒 This is an archived version and cannot be modified.
@@ -680,7 +686,7 @@ export default function ContractDetails() {
                 )}
                 {contract.status === 'expired' && (
                   <p className="mt-1 text-xs text-red-600 dark:text-red-400">
-                    🔒 Expired contracts are locked. Create a new contract or renew if needed.
+                    🔒 Expired contracts are locked. Create new contract.
                   </p>
                 )}
               </div>
@@ -691,8 +697,8 @@ export default function ContractDetails() {
                   rows={4}
                   value={formData.description}
                   onChange={handleInputChange}
-                  disabled={contract.status === 'active'}
-                  className={`w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 ${contract.status === 'active' ? 'opacity-60 cursor-not-allowed' : ''}`}
+                  disabled={['renewed', 'expired'].includes(contract.status)}
+                  className={`w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 ${['renewed', 'expired'].includes(contract.status) ? 'opacity-60 cursor-not-allowed' : ''}`}
                 />
               </div>
             </div>

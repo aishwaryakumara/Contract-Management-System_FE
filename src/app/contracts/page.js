@@ -696,6 +696,19 @@ export default function Contracts() {
                         )}
                       </div>
                     </th>
+                    <th 
+                      onClick={() => handleSort('createdAt')}
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors select-none"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span>Created On</span>
+                        {sortConfig.key === 'createdAt' && (
+                          <svg className={`w-4 h-4 transition-transform ${sortConfig.direction === 'desc' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                          </svg>
+                        )}
+                      </div>
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -796,6 +809,9 @@ export default function Contracts() {
                         <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(contract.status)}`}>
                           {contract.status}
                         </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        {contract.createdAt ? new Date(contract.createdAt).toLocaleDateString() : '-'}
                       </td>
                     </tr>
                   ))}
