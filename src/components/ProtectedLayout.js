@@ -10,7 +10,7 @@ export default function ProtectedLayout({ children }) {
   // Show loading state
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 dark:bg-gradient-to-br dark:from-gray-900 dark:via-gray-950 dark:to-slate-950 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <svg className="animate-spin h-8 w-8 text-blue-600 dark:text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -29,7 +29,7 @@ export default function ProtectedLayout({ children }) {
 
   // Render protected content with fade-in animation
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 transition-colors animate-fadeIn">
+    <div className="min-h-screen bg-gray-50 dark:bg-gradient-to-br dark:from-gray-900 dark:via-gray-950 dark:to-slate-950 transition-colors animate-fadeIn">
       {/* Header across the top - Fixed */}
       <Header />
       

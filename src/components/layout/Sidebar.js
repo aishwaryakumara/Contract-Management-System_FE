@@ -59,11 +59,11 @@ export default function Sidebar() {
   return (
     <aside className={`
       ${isCollapsed ? 'w-20' : 'w-64'} 
-      bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 h-full flex flex-col border-r border-gray-200 dark:border-gray-900 
+      bg-white dark:bg-gradient-to-b dark:from-gray-800 dark:to-gray-900 text-gray-900 dark:text-gray-100 h-full flex flex-col border-r border-gray-200 dark:border-gray-700 shadow-xl dark:shadow-2xl
       transition-all duration-300 ease-in-out
     `}>
       {/* Header with Logo and Toggle */}
-      <div className={`flex items-center px-4 py-4 border-b border-gray-200 dark:border-gray-900 ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
+      <div className={`flex items-center px-4 py-4 border-b border-gray-200 dark:border-gray-700 ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
         {!isCollapsed && (
           <div className="flex items-center space-x-3 overflow-hidden">
             <svg viewBox="0 0 20 20" fill="currentColor" className="w-8 h-8 text-gray-900 dark:text-white flex-shrink-0">
@@ -76,7 +76,7 @@ export default function Sidebar() {
         )}
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors flex-shrink-0"
+          className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex-shrink-0"
           aria-label="Toggle sidebar"
         >
           <svg 
@@ -106,7 +106,7 @@ export default function Sidebar() {
                 ${
                   isActive
                     ? 'bg-blue-600 dark:bg-blue-500 text-white shadow-lg shadow-blue-500/50 dark:shadow-blue-400/30'
-                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-900 hover:text-gray-900 dark:hover:text-white'
+                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'
                 }
               `}
               title={isCollapsed ? item.name : ''}
@@ -135,7 +135,7 @@ export default function Sidebar() {
       </nav>
 
       {/* Footer section (optional) */}
-      <div className={`px-4 py-4 border-t border-gray-200 dark:border-gray-900 ${isCollapsed ? 'flex justify-center' : ''}`}>
+      <div className={`px-4 py-4 border-t border-gray-200 dark:border-gray-700 ${isCollapsed ? 'flex justify-center' : ''}`}>
         <div className={`flex items-center text-xs text-gray-500 dark:text-gray-600 ${isCollapsed ? 'flex-col' : ''}`}>
           <svg className={`w-4 h-4 ${isCollapsed ? 'mb-1' : 'mr-2'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
