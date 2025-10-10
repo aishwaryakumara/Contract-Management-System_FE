@@ -40,20 +40,19 @@ export default function ContractDetails() {
     description: '',
   });
 
-  // Activity logging function
-  const logActivity = (type, details) => {
-    const activity = {
-      id: Date.now().toString(),
-      type,
-      details,
-      user: user?.name || 'Unknown User',
-      timestamp: new Date().toISOString(),
-    };
-
-    const history = JSON.parse(localStorage.getItem(`contractHistory_${params.id}`) || '[]');
-    history.unshift(activity);
-    localStorage.setItem(`contractHistory_${params.id}`, JSON.stringify(history));
-    setActivityHistory(history);
+  // Fetch activity history from backend
+  const fetchHistory = async () => {
+    try {
+      const response = await contractsAPI.getHistory(params.id);
+      if (response.success && response.data.success) {
+        setActivityHistory(response.data.data || []);
+      } else {
+        setActivityHistory([]);
+      }
+    } catch (error) {
+      console.error('Error loading activity history:', error);
+      setActivityHistory([]);
+    }
   };
 
   // Fetch lookup data (contract types and statuses)
@@ -103,9 +102,8 @@ export default function ContractDetails() {
             description: contractData.description || '',
           });
           
-          // Load activity history from localStorage
-          const history = JSON.parse(localStorage.getItem(`contractHistory_${params.id}`) || '[]');
-          setActivityHistory(history);
+          // Load activity history from backend
+          await fetchHistory();
         } else {
           toast.error('Contract not found', { icon: '❌' });
           router.push('/contracts');
@@ -214,13 +212,8 @@ export default function ContractDetails() {
           localStorage.setItem('contracts', JSON.stringify(contracts));
         }
 
-        // Log activity
-        if (changes.length > 0) {
-          logActivity('modified', {
-            message: `Contract modified`,
-            changes
-          });
-        }
+        // Refresh activity history (backend automatically logged the change)
+        await fetchHistory();
 
         toast.dismiss(loadingToast);
         toast.success('Contract saved successfully!', {
@@ -256,12 +249,8 @@ export default function ContractDetails() {
         
         setDocuments([...documents, newDoc]);
 
-        // Log activity
-        logActivity('document_uploaded', {
-          message: `Document "${file.name}" uploaded`,
-          fileName: file.name,
-          fileSize: file.size
-        });
+        // Refresh activity history (backend automatically logged the upload)
+        await fetchHistory();
 
         toast.dismiss(loadingToast);
         toast.success(`Document "${file.name}" uploaded successfully!`, {
@@ -281,6 +270,27 @@ export default function ContractDetails() {
     }
   };
 
+  const handleDownloadDocument = async (doc) => {
+    const loadingToast = toast.loading(`Downloading ${doc.fileName}...`, { icon: '📥' });
+    
+    try {
+      const result = await documentsAPI.download(doc.id, doc.fileName);
+      
+      if (result.success) {
+        toast.dismiss(loadingToast);
+        toast.success(`Downloaded ${doc.fileName}!`, {
+          icon: '✅',
+        });
+      } else {
+        throw new Error(result.error || 'Download failed');
+      }
+    } catch (error) {
+      console.error('Error downloading document:', error);
+      toast.dismiss(loadingToast);
+      toast.error('Failed to download document', { icon: '❌' });
+    }
+  };
+
   const handleDeleteDocument = async (docId) => {
     const doc = documents.find(d => d.id === docId);
     
@@ -295,13 +305,8 @@ export default function ContractDetails() {
         // Remove from local state
         setDocuments(documents.filter(d => d.id !== docId));
 
-        // Log activity
-        if (doc) {
-          logActivity('document_deleted', {
-            message: `Document "${doc.fileName}" deleted`,
-            fileName: doc.fileName
-          });
-        }
+        // Refresh activity history (backend automatically logged the deletion)
+        await fetchHistory();
 
         toast.dismiss(loadingToast);
         toast.success(`Document "${doc?.fileName}" deleted successfully!`, {
@@ -890,7 +895,10 @@ export default function ContractDetails() {
                         <button className="px-3 py-1.5 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/20 rounded transition-colors">
                           View
                         </button>
-                        <button className="px-3 py-1.5 text-sm text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/20 rounded transition-colors">
+                        <button 
+                          onClick={() => handleDownloadDocument(documents[0])}
+                          className="px-3 py-1.5 text-sm text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/20 rounded transition-colors"
+                        >
                           Download
                         </button>
                       </div>
@@ -928,7 +936,10 @@ export default function ContractDetails() {
                           <button className="px-3 py-1.5 text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/20 rounded transition-colors">
                             View
                           </button>
-                          <button className="px-3 py-1.5 text-xs text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/20 rounded transition-colors">
+                          <button 
+                            onClick={() => handleDownloadDocument(doc)}
+                            className="px-3 py-1.5 text-xs text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/20 rounded transition-colors"
+                          >
                             Download
                           </button>
                           <button

@@ -142,6 +142,10 @@ export const contractsAPI = {
   async extractData(formData) {
     return apiClient.post('/contracts/extract', formData);
   },
+  
+  async getHistory(contractId) {
+    return apiClient.get(`/contracts/${contractId}/history`);
+  },
 };
 
 /**
@@ -150,6 +154,52 @@ export const contractsAPI = {
 export const documentsAPI = {
   async delete(documentId) {
     return apiClient.delete(`/documents/${documentId}`);
+  },
+  
+  async download(documentId, filename) {
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      
+      const response = await fetch(`${API_BASE_URL}/documents/${documentId}/download`, {
+        method: 'GET',
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : '',
+        },
+      });
+      
+      if (!response.ok) {
+        // Try to get error message
+        let errorMsg = 'Download failed';
+        try {
+          const error = await response.json();
+          errorMsg = error.error || errorMsg;
+        } catch (e) {
+          errorMsg = `Download failed (${response.status})`;
+        }
+        console.error('Download error:', errorMsg, 'Status:', response.status);
+        throw new Error(errorMsg);
+      }
+      
+      // Get the blob
+      const blob = await response.blob();
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      
+      // Cleanup
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      return { success: true };
+    } catch (error) {
+      console.error('Download error:', error);
+      return { success: false, error: error.message };
+    }
   },
 };
 
