@@ -33,7 +33,7 @@ export default function Home() {
               </div>
               <div className="flex gap-2">
                 <span className="font-semibold text-gray-900 dark:text-white min-w-[140px]">Edit Contract:</span>
-                <span>Open contract details → Click "Edit" → Update fields → Save</span>
+                <span>Draft/Pending contracts only. Active contracts are view-only (status can change to expired)</span>
               </div>
               <div className="flex gap-2">
                 <span className="font-semibold text-gray-900 dark:text-white min-w-[140px]">Renew Contract:</span>
@@ -123,7 +123,7 @@ export default function Home() {
                         </svg>
                       </span>
                     </td>
-                    <td className="py-2 px-4">Cannot reverse</td>
+                    <td className="py-2 px-4">Cannot reverse (fields locked)</td>
                   </tr>
                   <tr className="border-b border-gray-100 dark:border-gray-800">
                     <td className="py-2 px-4">Active</td>
